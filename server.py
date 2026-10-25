@@ -1,6 +1,7 @@
 # This quickstart uses Flask, but the Auth0 Python SDK works with any
 # framework. For FastAPI, see: https://github.com/auth0/auth0-fastapi
 import json
+import requests
 from os import environ as env
 from urllib.parse import urlparse
 
@@ -8,8 +9,9 @@ from auth0_server_python.auth_server.server_client import ServerClient
 from auth0_server_python.auth_types import LogoutOptions, StartInteractiveLoginOptions, StateData, TransactionData
 from auth0_server_python.store.abstract import AbstractDataStore
 from dotenv import load_dotenv
-from flask import Flask, after_this_request, redirect, request
+from flask import Flask, after_this_request, redirect, request, render_template_string, session
 from markupsafe import escape
+from auth0_api import get_management_token
 
 load_dotenv()
 
@@ -92,6 +94,7 @@ async def home():
             <h1>User Profile</h1>
             <pre>{escape(json.dumps(user, indent=2))}</pre>
             <a href="/logout">Logout</a>
+            <a href="/editar_perfil">Edit</a>
         """
 
     return f"""
@@ -138,6 +141,76 @@ async def logout():
     # highlight-end logout
     return redirect(url)
 
+@app.route("/editar_perfil", methods=["GET", "POST"])
+async def edit_metadata():
+    user = await auth0().get_session({"request": request})
+    if not user:
+        return redirect("/login")
+
+    user_id = user.get("sub")
+    domain = env.get("AUTH0_DOMAIN").replace("http://", "").strip("/")
+
+    if request.method == "POST":
+        tipo_documento = request.form.get("tipo_documento")
+        nro_documento = request.form.get("nro_documento")
+        direccion = request.form.get("direccion")
+        telefono = request.form.get("telefono")
+
+        token = get_management_token()
+
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "user_metadata": {
+                "tipo_documento": tipo_documento,
+                "nro_documento": nro_documento,
+                "direccion": direccion,
+                "telefono": telefono    
+            }
+        }
+
+        url = f"https://{domain}/api/v2/users/{user_id}"
+        res = requests.patch(url, json=payload, headers=headers)
+
+        if res.status_code == 200:
+            if "user_metadata" not in user:
+                user["user_metadata"] = {}
+            user["user_metadata"]["tipo_documento"] = tipo_documento
+            user["user_metadata"]["nro_documento"] = nro_documento
+            user["user_metadata"]["direccion"] = direccion
+            user["user_metadata"]["telefono"] = telefono
+            session["user"] = user
+
+            return redirect("/")
+        else:
+            return f"Error al actualizar metadata en Auth0 UnU: {res.text}", res.status_code
+
+    current_metadata = user.get("user_metadata", {})
+
+    html = """
+    <h2>Modificar Perfil (User Metadata)</h2>
+    <form method="POST">
+        <label>Tipo de documento:</label><br>
+        <input type="text" name="tipo_documento" value="{{ metadata.get('tipo_documento', '') }}"><br><br>
+
+        <label>Número de documento:</label><br>
+        <input type="text" name="nro_documento" value="{{ metadata.get('nro_documento', '') }}"><br><br>
+
+        <label>Dirección de residencia:</label><br>
+        <input type="text" name="direccion" value="{{ metadata.get('direccion', '') }}"><br><br>
+
+        <label>Teléfono:</label><br>
+        <input type="text" name="telefono" value="{{ metadata.get('telefono', '') }}"><br><br>
+
+        <button type="submit">Guardar cambios</button>
+    </form>
+    <br>
+    <a href="/">Volver al inicio</a> 
+    """
+    return render_template_string(html, metadata=current_metadata)
 
 if __name__ == "__main__":
     url = urlparse(env.get("APP_BASE_URL"))
