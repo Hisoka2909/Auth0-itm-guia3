@@ -170,16 +170,15 @@ async def edit_metadata():
 
     user_id = user["user"].get("sub")
 
+    token = get_management_token()
+    domain = env.get("AUTH0_DOMAIN")
+    url = f"https://{domain}/api/v2/users/{user_id}"
+
     if request.method == "POST":
         tipo_documento = request.form.get("tipo_documento")
         nro_documento = request.form.get("nro_documento")
         direccion = request.form.get("direccion")
         telefono = request.form.get("telefono")
-
-        token = get_management_token()
-        domain = env.get("AUTH0_DOMAIN")
-
-        url = f"https://{domain}/api/v2/users/{user_id}"
 
         headers = {
             "Authorization": f"Bearer {token}",
@@ -211,7 +210,8 @@ async def edit_metadata():
         else:
             return f"Error al actualizar metadata en Auth0 UnU: {res.text}", res.status_code
 
-    current_metadata = user.get("user_metadata", {})
+    res = requests.get(url, headers={"Authorization": f"Bearer {token}"})
+    current_metadata = res.json().get("user_metadata", {})
 
     html = """
     <h2>Modificar Perfil (User Metadata)</h2>
