@@ -16,7 +16,7 @@ from auth0_api import get_management_token
 load_dotenv()
 
 app = Flask(__name__)
-
+app.secret_key = "ejemploclaveuwu123"
 
 # highlight-start stores
 # The SDK requires two stores: one for session data (user profile, tokens)
@@ -48,7 +48,13 @@ class CookieStore(AbstractDataStore):
 
     async def get(self, identifier, options=None):
         try:
-            encrypted = options["request"].cookies.get(self.cookie_name)
+            if isinstance(options, dict):
+                req = options.get("request")
+            else:
+                req = options
+
+            encrypted = req.cookies.get(self.cookie_name) if req else None
+
             return self.model.model_validate(self.decrypt(identifier, encrypted)) if encrypted else None
         except Exception:
             app.logger.warning("Failed to decrypt cookie %s", self.cookie_name, exc_info=True)
@@ -88,6 +94,21 @@ async def home():
     head = "<!DOCTYPE html><title>Auth0 Python Sample</title>"
 
     if user:
+        user_id = user.get("sub")
+
+        if user_id:
+            token = get_management_token()
+            domain = env.get("AUTH0_DOMAIN")
+
+            url = f"https://{domain}/api/v2/users/{user_id}"
+            headers = {"Authorization": f"Bearer {token}"}
+
+            res = requests.get(url, headers=headers)
+
+            if res.status_code == 200:
+                datos = res.json()
+                user["user_metadata"] = datos.get("user_metadata", {})
+
         return f"""
             {head}
             <p>Logged in as {escape(user.get("email", ""))}</p>
@@ -144,11 +165,10 @@ async def logout():
 @app.route("/editar_perfil", methods=["GET", "POST"])
 async def edit_metadata():
     user = await auth0().get_session({"request": request})
-    if not user:
+    if not user or "user" not in user:
         return redirect("/login")
 
-    user_id = user.get("sub")
-    domain = env.get("AUTH0_DOMAIN").replace("http://", "").strip("/")
+    user_id = user["user"].get("sub")
 
     if request.method == "POST":
         tipo_documento = request.form.get("tipo_documento")
@@ -157,6 +177,9 @@ async def edit_metadata():
         telefono = request.form.get("telefono")
 
         token = get_management_token()
+        domain = env.get("AUTH0_DOMAIN")
+
+        url = f"https://{domain}/api/v2/users/{user_id}"
 
         headers = {
             "Authorization": f"Bearer {token}",
@@ -172,7 +195,6 @@ async def edit_metadata():
             }
         }
 
-        url = f"https://{domain}/api/v2/users/{user_id}"
         res = requests.patch(url, json=payload, headers=headers)
 
         if res.status_code == 200:
@@ -184,6 +206,7 @@ async def edit_metadata():
             user["user_metadata"]["telefono"] = telefono
             session["user"] = user
 
+            print("¡Metadata guardada con éxito en Auth0 OwO!")
             return redirect("/")
         else:
             return f"Error al actualizar metadata en Auth0 UnU: {res.text}", res.status_code
