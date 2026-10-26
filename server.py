@@ -217,7 +217,12 @@ async def edit_metadata():
     <h2>Modificar Perfil (User Metadata)</h2>
     <form method="POST">
         <label>Tipo de documento:</label><br>
-        <input type="text" name="tipo_documento" value="{{ metadata.get('tipo_documento', '') }}"><br><br>
+        <select name="tipo_documento">
+            <option value="" disabled {{ 'selected' if not metadata.get('tipo_documento') else '' }}>Seleccione uno :3</option>
+            <option value="CC" {{ 'selected' if metadata.get('tipo_documento') == 'CC' else '' }}>Cédula de Ciudadanía</option>
+            <option value="TI" {{ 'selected' if metadata.get('tipo_documento') == 'TI' else '' }}>Tarjeta de Identidad</option>
+            <option value="CE" {{ 'selected' if metadata.get('tipo_documento') == 'CE' else '' }}>Cédula de Extranjería</option>
+        </select><br><br>
 
         <label>Número de documento:</label><br>
         <input type="text" name="nro_documento" value="{{ metadata.get('nro_documento', '') }}"><br><br>
@@ -226,7 +231,7 @@ async def edit_metadata():
         <input type="text" name="direccion" value="{{ metadata.get('direccion', '') }}"><br><br>
 
         <label>Teléfono:</label><br>
-        <input type="text" name="telefono" value="{{ metadata.get('telefono', '') }}"><br><br>
+        <input type="tel" name="telefono" value="{{ metadata.get('telefono', '') }}"><br><br>
 
         <button type="submit">Guardar cambios</button>
     </form>
